@@ -6,6 +6,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - README.md
+      - generate_profile_cards.py
+      - .github/workflows/update-profile-art.yml
 
 permissions:
   contents: write
@@ -18,9 +22,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python scripts/fetch_contributions.py
-      - run: python scripts/render_profile_art.py
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: refresh profile art [skip ci]"
-          file_pattern: "data/contributions.json contributions.svg stats.svg identity.svg"
+      - name: Render self-hosted cards
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: thorsenbuilds
+          PROFILE_CARDS_DIR: assets/profile-cards
+          PROFILE_CARDS_CACHE_BUST: ${{ github.run_id }}
+        run: python3 generate_profile_cards.py
+      - name: Commit generated art
+        run: |
+          if [[ -n "$(git status --porcelain -- README.md assets/profile-cards/)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md assets/profile-cards/
+            git commit -m "chore: refresh profile art [skip ci]"
+            git push
+          fi
